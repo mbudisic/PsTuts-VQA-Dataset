@@ -194,11 +194,13 @@ async def process_files(
         if output_dir and max_download_mb:
             # First pass: collect all videos and their sizes
             all_videos = []
+            json_to_videos = {}  # Map JSON files to their videos
             for json_file in json_files:
                 try:
                     with open(json_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     all_videos.extend(data)
+                    json_to_videos[json_file] = data
                 except (json.JSONDecodeError, FileNotFoundError) as e:
                     print(f"Error reading {json_file}: {e}", file=sys.stderr)
                     continue
@@ -236,7 +238,24 @@ async def process_files(
                     safe_title = "".join(
                         c for c in title if c.isalnum() or c in " -_"
                     ).strip()
-                    output_path = os.path.join(output_dir, f"{safe_title}.mp4")
+
+                    # Find which JSON file this video came from
+                    source_json = None
+                    for json_file, videos in json_to_videos.items():
+                        if video in videos:
+                            source_json = json_file
+                            break
+
+                    if source_json:
+                        # Create subfolder based on JSON filename (without extension)
+                        json_name = os.path.splitext(os.path.basename(source_json))[0]
+                        subfolder = os.path.join(output_dir, json_name)
+                        os.makedirs(subfolder, exist_ok=True)
+                        output_path = os.path.join(subfolder, f"{safe_title}.mp4")
+                    else:
+                        # Fallback to main output directory if source not found
+                        output_path = os.path.join(output_dir, f"{safe_title}.mp4")
+
                     file_paths.append(output_path)
                     download_tasks.append(
                         download_file(session, video["url"], output_path, pbar)
