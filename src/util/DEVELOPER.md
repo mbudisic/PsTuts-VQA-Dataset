@@ -162,17 +162,21 @@ VideoWithSize = Tuple[VideoDict, int]
 
 ## 🚨 Common Pitfalls
 
-1. **Memory Management**
+1. **Environment Setup**
+   - Use system Python (/usr/bin/python3) for virtual environment
+   - Set PYTHONPATH correctly when running scripts
+
+2. **Memory Management**
    - Use generators for large file processing
    - Implement proper cleanup in async context
    - Monitor memory usage during downloads
 
-2. **Network Handling**
+3. **Network Handling**
    - Implement retry logic for failed downloads
    - Handle rate limiting
    - Use connection pooling
 
-3. **File System**
+4. **File System**
    - Check disk space before downloads
    - Handle path encoding issues
    - Implement proper file locking
@@ -195,4 +199,13 @@ asyncio.get_event_loop().set_debug(True)
 ```python
 import aiohttp
 aiohttp.TRACE = True
+```
+
+4. Environment Variables:
+```bash
+# Set Python path correctly
+export PYTHONPATH=src
+
+# Run script with debug output
+PYTHONPATH=src python src/util/fetch.py "*.json" --output data --curl 2>&1 | tee output.log
 ``` 

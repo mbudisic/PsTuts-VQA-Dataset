@@ -7,10 +7,12 @@
 git clone https://github.com/yourusername/PsTuts-VQA-Dataset.git
 cd PsTuts-VQA-Dataset
 
-# Install dependencies using uv
-uv venv
+# Create and activate virtual environment using system Python
+/usr/bin/python3 -m venv .venv
 source .venv/bin/activate
-uv pip install -e ".[dev]"
+
+# Install dependencies
+pip install -e ".[dev]"
 ```
 
 ## 📁 Project Structure
@@ -30,18 +32,18 @@ uv pip install -e ".[dev]"
 
 ### Prerequisites
 - Python 3.8 or higher
-- [uv](https://github.com/astral-sh/uv) for dependency management
+- System Python (recommended: /usr/bin/python3)
 
 ### Environment Setup
-1. Create and activate virtual environment:
+1. Create virtual environment using system Python:
    ```bash
-   uv venv
+   /usr/bin/python3 -m venv .venv
    source .venv/bin/activate
    ```
 
 2. Install development dependencies:
    ```bash
-   uv pip install -e ".[dev]"
+   pip install -e ".[dev]"
    ```
 
 ### Code Quality Tools
@@ -80,7 +82,7 @@ pytest
 
 ### Video Fetching (`src/util/fetch.py`)
 - Asynchronous video downloading
-- Progress tracking
+- Progress tracking with tqdm
 - Size calculation and management
 - Parallel downloads using curl
 
@@ -91,11 +93,15 @@ pytest
 
 ## 🚨 Common Issues
 
-1. **Type Checking Errors**
+1. **Python Environment Issues**
+   - Use system Python (/usr/bin/python3) for virtual environment creation
+   - Ensure PYTHONPATH is set correctly when running scripts
+
+2. **Type Checking Errors**
    - Ensure all functions have proper type hints
    - Run `mypy .` to check types
 
-2. **Linting Errors**
+3. **Linting Errors**
    - Run `black .` to format code
    - Run `flake8` to check for style issues
 
