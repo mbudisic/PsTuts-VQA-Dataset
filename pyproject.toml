@@ -1,7 +1,7 @@
 [project]
-name = "pstuts-vqa-dataset"
+name = "pstuts-vqa-tools"
 version = "0.1.0"
-description = "Video QA Dataset Processing Tools"
+description = "Tools for processing and analyzing the Photoshop Tutorials Video QA Dataset"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -17,6 +17,7 @@ classifiers = [
 dependencies = [
     "aiohttp>=3.8.0",
     "requests>=2.31.0",
+    "typing-extensions>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -30,12 +31,10 @@ dev = [
 [tool.ruff]
 line-length = 88
 target-version = "py38"
-
-[tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "N", "W"]
 ignore = []
 
-[tool.ruff.lint.isort]
+[tool.ruff.isort]
 known-first-party = ["src"]
 
 [tool.black]
