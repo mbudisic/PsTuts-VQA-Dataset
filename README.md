@@ -1,6 +1,56 @@
-# PsTuts VQA Dataset Tools
+# Video Size Calculator 🎥
 
-Tools for processing and analyzing the Photoshop Tutorials Video QA Dataset.
+A Python utility to calculate the total size of video files referenced in JSON files.
+
+## Setup 🛠️
+
+1. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Linux/Mac
+# or
+.\venv\Scripts\activate  # On Windows
+```
+
+2. Install dependencies:
+```bash
+pip install .
+```
+
+## Usage 📝
+
+The script supports processing single or multiple JSON files using glob patterns:
+
+```bash
+# Process a single file
+python src/util/calculate_size.py data.json
+
+# Process all JSON files in a directory
+python src/util/calculate_size.py "data/*.json"
+
+# Process JSON files in multiple directories
+python src/util/calculate_size.py "data/**/*.json"
+```
+
+## Input Format 📋
+
+The script expects JSON files containing video information in the following format:
+
+```json
+[
+    {
+        "title": "Video Title",
+        "url": "https://example.com/video.mp4"
+    }
+]
+```
+
+## Output 📊
+
+The script will display:
+- Individual file sizes for each video
+- Total size per JSON file
+- Combined statistics when processing multiple files
 
 ## About the Dataset
 
@@ -19,60 +69,6 @@ For more information, visit: https://sites.google.com/view/pstuts-vqa/home
 - Human-readable size formatting
 - Total size calculation
 - Error handling for inaccessible URLs
-
-## Requirements
-
-- Python 3.8 or higher
-- `uv` package manager (recommended) or `pip`
-
-## Installation
-
-Using `uv` (recommended):
-
-```bash
-# Create virtual environment
-uv venv
-
-# Activate virtual environment
-source .venv/bin/activate
-
-# Install dependencies
-uv pip install requests
-```
-
-Using `pip`:
-
-```bash
-# Create virtual environment
-python -m venv .venv
-
-# Activate virtual environment
-source .venv/bin/activate
-
-# Install dependencies
-pip install requests
-```
-
-## Usage
-
-### Calculate Video Sizes
-
-The `calculate_size.py` script reads a JSON file containing video metadata and calculates the size of each MP4 file:
-
-```bash
-python src/util/calculate_size.py path/to/videos.json
-```
-
-Example output:
-```
-File sizes:
---------------------------------------------------------------------------------
-Video Title 1: 23.89 MB
-Video Title 2: 76.51 MB
-...
---------------------------------------------------------------------------------
-Total size: 717.56 MB
-```
 
 ## Project Structure
 
