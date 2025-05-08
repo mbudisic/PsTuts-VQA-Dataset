@@ -45,7 +45,7 @@ async def download_file(
     url: str,
     output_path: str,
     pbar: tqdm,
-) -> bool:
+) -> Tuple[bool, int]:
     """Download file using aiohttp with progress bar."""
     try:
         async with session.get(url) as response:
@@ -55,13 +55,15 @@ async def download_file(
             pbar.set_description(os.path.basename(output_path))
 
             with open(output_path, "wb") as f:
+                downloaded_size = 0
                 async for chunk in response.content.iter_chunked(8192):
                     f.write(chunk)
+                    downloaded_size += len(chunk)
                     pbar.update(len(chunk))
-        return True
+        return True, downloaded_size
     except (aiohttp.ClientError, OSError) as e:
         print(f"Error downloading {url}: {e}", file=sys.stderr)
-        return False
+        return False, 0
 
 
 async def get_video_sizes(
@@ -140,10 +142,16 @@ async def process_json_file(
                     )
 
                 results = await asyncio.gather(*download_tasks)
-                for (video, size), success in zip(videos_with_sizes, results):
+                for (video, size), (success, downloaded_size) in zip(
+                    videos_with_sizes, results
+                ):
                     title = video.get("title", "Unknown")
                     if success:
-                        print(f"Downloaded: {title} ({human_readable_size(size)})")
+                        print(
+                            f"Downloaded: {title} "
+                            f"(Expected: {human_readable_size(size)}, "
+                            f"Actual: {human_readable_size(downloaded_size)})"
+                        )
                     else:
                         print(f"Failed to download: {title}")
 
