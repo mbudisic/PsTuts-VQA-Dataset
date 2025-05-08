@@ -58,6 +58,8 @@ A versatile script for processing video metadata JSON files with three modes of 
    - Parallel downloads for faster processing
    - Progress bar showing download status
    - Verifies downloaded file sizes
+   - Organizes files into subfolders based on source JSON files
+     - Example: `videos/test/` for files from `test.json`
 
 3. **Limited Download Mode**
    ```bash
@@ -67,12 +69,30 @@ A versatile script for processing video metadata JSON files with three modes of 
    - Shows download plan before starting
    - Lists full filepaths of downloaded files
    - Verifies downloaded file sizes
+   - Organizes files into subfolders based on source JSON files
+     - Example: `videos/test/` for files from `test.json`
 
 Common Features:
 - Supports glob patterns for processing multiple JSON files
 - UTF-8 encoding for file operations
 - Progress tracking and status reporting
 - Error handling and reporting
+- Automatic subfolder organization:
+  - Creates a subfolder for each source JSON file
+  - Subfolder name matches JSON filename (without extension)
+  - Example structure:
+    ```
+    videos/
+    ├── test/
+    │   ├── video1.mp4
+    │   └── video2.mp4
+    ├── train/
+    │   ├── video3.mp4
+    │   └── video4.mp4
+    └── dev/
+        ├── video5.mp4
+        └── video6.mp4
+    ```
 
 ## Environment Setup 🚀
 
@@ -91,3 +111,5 @@ uv pip install -e .
 
 - Downloaded MP4 files are ignored by Git (see `.gitignore`)
 - For more detailed help, run: `python fetch.py --help`
+- Files are automatically organized into subfolders based on their source JSON files
+- If a video's source JSON file cannot be determined, it will be saved in the main output directory
