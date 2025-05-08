@@ -1,10 +1,12 @@
-import json
-import aiohttp
 import asyncio
-from pathlib import Path
-from typing import Dict, List
-import sys
 import glob
+import json
+import sys
+from typing import Dict
+
+import aiohttp
+from pathlib import Path
+from typing import List
 
 
 def human_readable_size(size_bytes: float) -> str:
