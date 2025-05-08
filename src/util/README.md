@@ -38,41 +38,41 @@ This directory contains utility scripts for managing and processing the dataset.
 
 ## Available Scripts
 
-### `calculate_size.py` 📏
-
-Calculates the total size of MP4 files referenced in JSON metadata files.
-
-```bash
-python calculate_size.py "*.json"
-```
-
-Features:
-- Supports glob patterns for processing multiple JSON files
-- Shows individual file sizes and total size
-- Human-readable size formatting (B, KB, MB, GB, TB)
-
 ### `fetch.py` 📥
 
-Downloads MP4 files from URLs specified in JSON metadata files.
+A versatile script for processing video metadata JSON files with three modes of operation:
 
-```bash
-# Calculate sizes only
-python fetch.py "*.json"
+1. **Size Calculation Mode** (default)
+   ```bash
+   python fetch.py "*.json"
+   ```
+   - Calculates sizes of videos referenced in JSON files
+   - Shows individual file sizes and total size
+   - Human-readable size formatting (B, KB, MB, GB, TB)
 
-# Download all files
-python fetch.py "*.json" --output videos
+2. **Full Download Mode**
+   ```bash
+   python fetch.py "*.json" --output videos
+   ```
+   - Downloads all videos to specified output directory
+   - Parallel downloads for faster processing
+   - Progress bar showing download status
+   - Verifies downloaded file sizes
 
-# Download files within size limit
-python fetch.py "*.json" --output videos --max-download 200
-```
+3. **Limited Download Mode**
+   ```bash
+   python fetch.py "*.json" --output videos --max-download 200
+   ```
+   - Downloads videos up to specified size limit (in MB)
+   - Shows download plan before starting
+   - Lists full filepaths of downloaded files
+   - Verifies downloaded file sizes
 
-Features:
-- Parallel downloads for faster processing
-- Progress bar showing download status
-- Size limit option to stay within storage constraints
-- Shows download plan before starting
-- Verifies downloaded file sizes
-- Lists full filepaths of downloaded files
+Common Features:
+- Supports glob patterns for processing multiple JSON files
+- UTF-8 encoding for file operations
+- Progress tracking and status reporting
+- Error handling and reporting
 
 ## Environment Setup 🚀
 
@@ -90,5 +90,4 @@ uv pip install -e .
 ## Notes 📝
 
 - Downloaded MP4 files are ignored by Git (see `.gitignore`)
-- All scripts support glob patterns for processing multiple JSON files
-- Scripts use UTF-8 encoding for file operations
+- For more detailed help, run: `python fetch.py --help`

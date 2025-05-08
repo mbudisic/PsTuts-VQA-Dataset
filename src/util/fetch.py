@@ -280,7 +280,26 @@ def main() -> None:
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Process video metadata JSON files.")
+    parser = argparse.ArgumentParser(
+        description="""
+Video metadata processor with three modes of operation:
+
+1. Size Calculation Mode (default):
+   Run without --output to calculate sizes of videos referenced in JSON files.
+   Example: python fetch.py "*.json"
+
+2. Full Download Mode:
+   Download all videos to specified output directory.
+   Example: python fetch.py "*.json" --output videos
+
+3. Limited Download Mode:
+   Download videos up to specified size limit.
+   Example: python fetch.py "*.json" --output videos --max-download 200
+
+All modes support glob patterns for processing multiple JSON files.
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "pattern",
         help="Glob pattern for JSON files (e.g., '*.json' or 'data/*.json')",
