@@ -209,13 +209,59 @@ async def process_files(
             selected_videos = select_videos_for_download(
                 videos_with_sizes, max_download_mb
             )
-            print(
-                f"\nSelected {len(selected_videos)} videos within {max_download_mb}MB limit"
-            )
 
-            # Second pass: download selected videos
-            for json_file in json_files:
-                await process_json_file(json_file, output_dir, selected_videos)
+            # Show download plan
+            print("\nDownload Plan:")
+            print("-" * 80)
+            total_download_size = sum(size for _, size in selected_videos)
+            print(f"Total files to download: {len(selected_videos)}")
+            print(f"Total download size: {human_readable_size(total_download_size)}")
+            print("\nFiles to download:")
+            for video, size in selected_videos:
+                title = video.get("title", "Unknown")
+                print(f"- {title} ({human_readable_size(size)})")
+            print("-" * 80)
+
+            # Prepare download tasks
+            download_tasks = []
+            file_paths = []
+            with tqdm(
+                total=total_download_size,
+                unit="B",
+                unit_scale=True,
+                desc="Downloading all files",
+            ) as pbar:
+                for video, size in selected_videos:
+                    title = video.get("title", "Unknown")
+                    safe_title = "".join(
+                        c for c in title if c.isalnum() or c in " -_"
+                    ).strip()
+                    output_path = os.path.join(output_dir, f"{safe_title}.mp4")
+                    file_paths.append(output_path)
+                    download_tasks.append(
+                        download_file(session, video["url"], output_path, pbar)
+                    )
+
+                # Download all files in parallel
+                results = await asyncio.gather(*download_tasks)
+
+            # Show results
+            print("\nDownload Results:")
+            print("-" * 80)
+            for (video, expected_size), (success, actual_size), filepath in zip(
+                selected_videos, results, file_paths
+            ):
+                title = video.get("title", "Unknown")
+                if success:
+                    print(
+                        f"✓ {title}\n"
+                        f"  Path: {filepath}\n"
+                        f"  Size: {human_readable_size(actual_size)} "
+                        f"(Expected: {human_readable_size(expected_size)})"
+                    )
+                else:
+                    print(f"✗ Failed to download: {title}")
+                print()
         else:
             # Normal processing without size limit
             for json_file in json_files:
