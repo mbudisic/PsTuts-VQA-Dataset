@@ -4,9 +4,10 @@ import asyncio
 from pathlib import Path
 from typing import Dict, List
 import sys
+import glob
 
 
-def human_readable_size(size_bytes: int) -> str:
+def human_readable_size(size_bytes: float) -> str:
     """Convert bytes to human readable format."""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size_bytes < 1024.0:
@@ -26,17 +27,21 @@ async def get_file_size(session: aiohttp.ClientSession, url: str) -> int:
         return 0
 
 
-async def calculate_sizes(json_path: str) -> None:
-    """Calculate sizes of all MP4 files in the JSON using async requests."""
+async def calculate_sizes(json_path: str) -> Dict[str, int]:
+    """Calculate sizes of all MP4 files in the JSON using async requests.
+
+    Returns:
+        Dict containing total size and number of files processed
+    """
     try:
         with open(json_path, "r") as f:
             data = json.load(f)
     except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error reading JSON file: {e}", file=sys.stderr)
-        return
+        print(f"Error reading JSON file {json_path}: {e}", file=sys.stderr)
+        return {"total_size": 0, "files_processed": 0}
 
     total_size = 0
-    print("\nFile sizes:")
+    print(f"\nProcessing {json_path}:")
     print("-" * 80)
 
     async with aiohttp.ClientSession() as session:
@@ -54,15 +59,40 @@ async def calculate_sizes(json_path: str) -> None:
         for video, size in zip(data, sizes):
             if video.get("url"):  # Only process videos that had URLs
                 total_size += size
-                print(f"{video.get('title', 'Unknown')}: {human_readable_size(size)}")
+                title = video.get("title", "Unknown")
+                print(f"{title}: {human_readable_size(size)}")
 
     print("-" * 80)
-    print(f"Total size: {human_readable_size(total_size)}")
+    print(f"Total size for {json_path}: {human_readable_size(total_size)}")
+    return {"total_size": total_size, "files_processed": len(data)}
+
+
+async def process_files(file_pattern: str) -> None:
+    """Process all JSON files matching the given glob pattern."""
+    json_files = glob.glob(file_pattern)
+    if not json_files:
+        print(f"No files found matching pattern: {file_pattern}")
+        return
+
+    total_size = 0
+    total_files = 0
+
+    for json_file in json_files:
+        result = await calculate_sizes(json_file)
+        total_size += result["total_size"]
+        total_files += result["files_processed"]
+
+    if len(json_files) > 1:
+        print("\nSummary:")
+        print("-" * 80)
+        print(f"Total files processed: {total_files}")
+        print(f"Combined size: {human_readable_size(total_size)}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python calculate_size.py <path_to_json>")
+        print("Usage: python calculate_size.py <glob_pattern>")
+        print("Example: python calculate_size.py 'data/*.json'")
         sys.exit(1)
 
-    asyncio.run(calculate_sizes(sys.argv[1]))
+    asyncio.run(process_files(sys.argv[1]))
