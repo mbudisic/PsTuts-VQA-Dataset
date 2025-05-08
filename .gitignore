@@ -32,6 +32,11 @@ ENV/
 .vscode/
 *.swp
 *.swo
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Project specific
 *.log 
