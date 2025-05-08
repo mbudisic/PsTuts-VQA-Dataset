@@ -65,7 +65,8 @@ async def download_file(
 
 
 async def get_video_sizes(
-    session: aiohttp.ClientSession, videos: List[Dict]
+    session: aiohttp.ClientSession,
+    videos: List[Dict],
 ) -> List[Tuple[Dict, int]]:
     """Get sizes for all videos."""
     tasks = []
@@ -73,14 +74,15 @@ async def get_video_sizes(
         if url := video.get("url"):
             tasks.append(get_file_size(session, url))
         else:
-            tasks.append(asyncio.sleep(0))  # Placeholder for videos without URLs
+            tasks.append(asyncio.sleep(0))
 
     sizes = await asyncio.gather(*tasks)
     return [(video, size) for video, size in zip(videos, sizes) if video.get("url")]
 
 
 def select_videos_for_download(
-    videos_with_sizes: List[Tuple[Dict, int]], max_size_mb: int
+    videos_with_sizes: List[Tuple[Dict, int]],
+    max_size_mb: int,
 ) -> List[Tuple[Dict, int]]:
     """Select videos to download within size limit."""
     max_size_bytes = max_size_mb * 1024 * 1024
@@ -103,7 +105,7 @@ def select_videos_for_download(
 async def process_json_file(
     json_path: str,
     output_dir: Optional[str] = None,
-    max_download_mb: Optional[int] = None,
+    videos_with_sizes: Optional[List[Tuple[Dict, int]]] = None,
 ) -> Dict[str, int]:
     """Process a single JSON file, either calculating sizes or downloading files."""
     try:
@@ -121,22 +123,13 @@ async def process_json_file(
         if output_dir:
             # Download mode
             os.makedirs(output_dir, exist_ok=True)
-            videos_with_sizes = await get_video_sizes(session, data)
-
-            if max_download_mb:
-                videos_to_download = select_videos_for_download(
-                    videos_with_sizes, max_download_mb
-                )
-                print(
-                    f"Selected {len(videos_to_download)} videos within {max_download_mb}MB limit"
-                )
-            else:
-                videos_to_download = videos_with_sizes
+            if videos_with_sizes is None:
+                videos_with_sizes = await get_video_sizes(session, data)
 
             # Download files in parallel
             download_tasks = []
-            with tqdm(total=len(videos_to_download), desc="Downloading") as pbar:
-                for video, size in videos_to_download:
+            with tqdm(total=len(videos_with_sizes), desc="Downloading") as pbar:
+                for video, size in videos_with_sizes:
                     title = video.get("title", "Unknown")
                     safe_title = "".join(
                         c for c in title if c.isalnum() or c in " -_"
@@ -147,7 +140,7 @@ async def process_json_file(
                     )
 
                 results = await asyncio.gather(*download_tasks)
-                for (video, size), success in zip(videos_to_download, results):
+                for (video, size), success in zip(videos_with_sizes, results):
                     title = video.get("title", "Unknown")
                     if success:
                         print(f"Downloaded: {title} ({human_readable_size(size)})")
@@ -189,10 +182,38 @@ async def process_files(
     total_size = 0
     total_files = 0
 
-    for json_file in json_files:
-        result = await process_json_file(json_file, output_dir, max_download_mb)
-        total_size += result["total_size"]
-        total_files += result["files_processed"]
+    async with aiohttp.ClientSession() as session:
+        if output_dir and max_download_mb:
+            # First pass: collect all videos and their sizes
+            all_videos = []
+            for json_file in json_files:
+                try:
+                    with open(json_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    all_videos.extend(data)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    print(f"Error reading {json_file}: {e}", file=sys.stderr)
+                    continue
+
+            # Get sizes for all videos
+            videos_with_sizes = await get_video_sizes(session, all_videos)
+            # Select videos within size limit
+            selected_videos = select_videos_for_download(
+                videos_with_sizes, max_download_mb
+            )
+            print(
+                f"\nSelected {len(selected_videos)} videos within {max_download_mb}MB limit"
+            )
+
+            # Second pass: download selected videos
+            for json_file in json_files:
+                await process_json_file(json_file, output_dir, selected_videos)
+        else:
+            # Normal processing without size limit
+            for json_file in json_files:
+                result = await process_json_file(json_file, output_dir)
+                total_size += result["total_size"]
+                total_files += result["files_processed"]
 
     if len(json_files) > 1 and not output_dir:
         print("\nSummary:")
