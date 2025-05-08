@@ -232,7 +232,7 @@ def generate_curl_command(
     """Generate curl command for downloading videos in parallel."""
     # Create curl command
     curl_cmd = [
-        "curl --progress-bar --create-dirs --parallel --parallel-immediate --parallel-max 60  \\"
+        "curl --progress-bar --create-dirs --parallel --parallel-immediate --parallel-max 5  \\"
     ]
     for video, _ in videos:
         output_path = get_output_path(video, output_dir, json_to_videos)
