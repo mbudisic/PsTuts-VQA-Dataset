@@ -66,6 +66,91 @@ async def download_file(
         return False, 0
 
 
+def read_json_file(json_path: str) -> List[Dict]:
+    """Read and validate a JSON file containing video metadata."""
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error reading {json_path}: {e}", file=sys.stderr)
+        return []
+
+
+def get_safe_filename(title: str) -> str:
+    """Convert video title to safe filename."""
+    return "".join(c for c in title if c.isalnum() or c in " -_").strip()
+
+
+def get_subfolder_path(
+    output_dir: str,
+    source_json: str,
+) -> str:
+    """Get subfolder path based on JSON filename."""
+    json_name = os.path.splitext(os.path.basename(source_json))[0]
+    subfolder = os.path.join(output_dir, json_name)
+    os.makedirs(subfolder, exist_ok=True)
+    return subfolder
+
+
+def get_output_path(
+    video: Dict,
+    output_dir: str,
+    json_to_videos: Dict[str, List[Dict]],
+) -> str:
+    """Generate output path for video file."""
+    safe_title = get_safe_filename(video.get("title", "Unknown"))
+
+    # Find source JSON file
+    source_json = next(
+        (json_file for json_file, videos in json_to_videos.items() if video in videos),
+        None,
+    )
+
+    if not source_json:
+        return os.path.join(output_dir, f"{safe_title}.mp4")
+
+    subfolder = get_subfolder_path(output_dir, source_json)
+    return os.path.join(subfolder, f"{safe_title}.mp4")
+
+
+def print_video_info(
+    videos: List[Tuple[Dict, int]],
+    title: str = "Video Information",
+    quiet: bool = False,
+) -> None:
+    """Print information about videos."""
+    if quiet:
+        return
+
+    print(f"\n{title}:")
+    print("-" * 80)
+    total_size = sum(size for _, size in videos)
+    print(f"Total files: {len(videos)}")
+    print(f"Total size: {human_readable_size(total_size)}")
+    print("\nFiles:")
+    for video, size in videos:
+        title = video.get("title", "Unknown")
+        print(f"- {title} ({human_readable_size(size)})")
+    print("-" * 80)
+
+
+async def get_video_info(
+    session: aiohttp.ClientSession,
+    json_files: List[str],
+) -> Tuple[List[Dict], Dict[str, List[Dict]]]:
+    """Read all JSON files and get video information."""
+    all_videos = []
+    json_to_videos = {}
+
+    for json_file in json_files:
+        data = read_json_file(json_file)
+        if data:
+            all_videos.extend(data)
+            json_to_videos[json_file] = data
+
+    return all_videos, json_to_videos
+
+
 async def get_video_sizes(
     session: aiohttp.ClientSession,
     videos: List[Dict],
@@ -104,195 +189,109 @@ def select_videos_for_download(
     return selected
 
 
-async def process_json_file(
-    json_path: str,
-    output_dir: Optional[str] = None,
-    videos_with_sizes: Optional[List[Tuple[Dict, int]]] = None,
-) -> Dict[str, int]:
-    """Process a single JSON file, either calculating sizes or downloading files."""
-    try:
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error reading JSON file {json_path}: {e}", file=sys.stderr)
-        return {"total_size": 0, "files_processed": 0}
+async def download_videos(
+    session: aiohttp.ClientSession,
+    videos_to_download: List[Tuple[Dict, int]],
+    output_dir: str,
+    json_to_videos: Dict[str, List[Dict]],
+) -> None:
+    """Download selected videos."""
+    download_tasks = []
+    file_paths = []
 
-    total_size = 0
-    print(f"\nProcessing {json_path}:")
-    print("-" * 80)
+    with tqdm(total=len(videos_to_download), desc="Downloading") as pbar:
+        for video, _ in videos_to_download:
+            output_path = get_output_path(video, output_dir, json_to_videos)
+            file_paths.append(output_path)
+            download_tasks.append(
+                download_file(session, video["url"], output_path, pbar)
+            )
 
-    async with aiohttp.ClientSession() as session:
-        if output_dir:
-            # Download mode
-            os.makedirs(output_dir, exist_ok=True)
-            if videos_with_sizes is None:
-                videos_with_sizes = await get_video_sizes(session, data)
+        results = await asyncio.gather(*download_tasks)
 
-            # Download files in parallel
-            download_tasks = []
-            with tqdm(total=len(videos_with_sizes), desc="Downloading") as pbar:
-                for video, size in videos_with_sizes:
-                    title = video.get("title", "Unknown")
-                    safe_title = "".join(
-                        c for c in title if c.isalnum() or c in " -_"
-                    ).strip()
-                    output_path = os.path.join(output_dir, f"{safe_title}.mp4")
-                    download_tasks.append(
-                        download_file(session, video["url"], output_path, pbar)
-                    )
+        for (video, _), (success, downloaded_size), filepath in zip(
+            videos_to_download, results, file_paths
+        ):
+            title = video.get("title", "Unknown")
+            if success:
+                print(
+                    f"✓ {title}\n"
+                    f"  Path: {filepath}\n"
+                    f"  Size: {human_readable_size(downloaded_size)}"
+                )
+            else:
+                print(f"✗ Failed to download: {title}")
+            print()
 
-                results = await asyncio.gather(*download_tasks)
-                for (video, size), (success, downloaded_size) in zip(
-                    videos_with_sizes, results
-                ):
-                    title = video.get("title", "Unknown")
-                    if success:
-                        print(
-                            f"Downloaded: {title} "
-                            f"(Expected: {human_readable_size(size)}, "
-                            f"Actual: {human_readable_size(downloaded_size)})"
-                        )
-                    else:
-                        print(f"Failed to download: {title}")
 
-        else:
-            # Size calculation mode
-            tasks = []
-            for video in data:
-                if url := video.get("url"):
-                    tasks.append(get_file_size(session, url))
+def generate_curl_command(
+    videos: List[Tuple[Dict, int]],
+    output_dir: str,
+    json_to_videos: Dict[str, List[Dict]],
+) -> str:
+    """Generate curl command for downloading videos in parallel."""
+    # Create curl command
+    curl_cmd = [
+        "curl --progress-bar --create-dirs --parallel --parallel-immediate --parallel-max 60  \\"
+    ]
+    for video, _ in videos:
+        output_path = get_output_path(video, output_dir, json_to_videos)
+        url = video.get("url", "")
+        if url:
+            curl_cmd.append(f"  -o '{output_path}' '{url}' \\")
+    curl_cmd[-1] = curl_cmd[-1].rstrip(
+        " \\"
+    )  # Remove trailing backslash from last line
 
-            sizes = await asyncio.gather(*tasks)
-
-            for video, size in zip(data, sizes):
-                if video.get("url"):
-                    total_size += size
-                    title = video.get("title", "Unknown")
-                    print(f"{title}: {human_readable_size(size)}")
-
-    print("-" * 80)
-    if not output_dir:
-        print(f"Total size for {json_path}: {human_readable_size(total_size)}")
-    return {"total_size": total_size, "files_processed": len(data)}
+    # Return the command
+    return "\n".join(curl_cmd)
 
 
 async def process_files(
     file_pattern: str,
     output_dir: Optional[str] = None,
     max_download_mb: Optional[int] = None,
+    use_curl: bool = False,
+    quiet: bool = False,
 ) -> None:
     """Process all JSON files matching the given glob pattern."""
     json_files = glob.glob(file_pattern)
     if not json_files:
-        print(f"No files found matching pattern: {file_pattern}")
+        if not quiet:
+            print(f"No files found matching pattern: {file_pattern}")
         return
 
-    total_size = 0
-    total_files = 0
-
     async with aiohttp.ClientSession() as session:
-        if output_dir and max_download_mb:
-            # First pass: collect all videos and their sizes
-            all_videos = []
-            json_to_videos = {}  # Map JSON files to their videos
-            for json_file in json_files:
-                try:
-                    with open(json_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    all_videos.extend(data)
-                    json_to_videos[json_file] = data
-                except (json.JSONDecodeError, FileNotFoundError) as e:
-                    print(f"Error reading {json_file}: {e}", file=sys.stderr)
-                    continue
+        # Step 1: Read all JSON files and get video information
+        all_videos, json_to_videos = await get_video_info(session, json_files)
+        if not all_videos:
+            if not quiet:
+                print("No videos found in JSON files")
+            return
 
-            # Get sizes for all videos
-            videos_with_sizes = await get_video_sizes(session, all_videos)
-            # Select videos within size limit
+        # Step 2: Get sizes for all videos
+        videos_with_sizes = await get_video_sizes(session, all_videos)
+
+        if not output_dir:
+            # Size calculation mode
+            print_video_info(videos_with_sizes, "Size Summary", quiet)
+            return
+
+        # Step 3: Select videos to download
+        if max_download_mb:
             selected_videos = select_videos_for_download(
                 videos_with_sizes, max_download_mb
             )
-
-            # Show download plan
-            print("\nDownload Plan:")
-            print("-" * 80)
-            total_download_size = sum(size for _, size in selected_videos)
-            print(f"Total files to download: {len(selected_videos)}")
-            print(f"Total download size: {human_readable_size(total_download_size)}")
-            print("\nFiles to download:")
-            for video, size in selected_videos:
-                title = video.get("title", "Unknown")
-                print(f"- {title} ({human_readable_size(size)})")
-            print("-" * 80)
-
-            # Prepare download tasks
-            download_tasks = []
-            file_paths = []
-            with tqdm(
-                total=total_download_size,
-                unit="B",
-                unit_scale=True,
-                desc="Downloading all files",
-            ) as pbar:
-                for video, size in selected_videos:
-                    title = video.get("title", "Unknown")
-                    safe_title = "".join(
-                        c for c in title if c.isalnum() or c in " -_"
-                    ).strip()
-
-                    # Find which JSON file this video came from
-                    source_json = None
-                    for json_file, videos in json_to_videos.items():
-                        if video in videos:
-                            source_json = json_file
-                            break
-
-                    if source_json:
-                        # Create subfolder based on JSON filename (without extension)
-                        json_name = os.path.splitext(os.path.basename(source_json))[0]
-                        subfolder = os.path.join(output_dir, json_name)
-                        os.makedirs(subfolder, exist_ok=True)
-                        output_path = os.path.join(subfolder, f"{safe_title}.mp4")
-                    else:
-                        # Fallback to main output directory if source not found
-                        output_path = os.path.join(output_dir, f"{safe_title}.mp4")
-
-                    file_paths.append(output_path)
-                    download_tasks.append(
-                        download_file(session, video["url"], output_path, pbar)
-                    )
-
-                # Download all files in parallel
-                results = await asyncio.gather(*download_tasks)
-
-            # Show results
-            print("\nDownload Results:")
-            print("-" * 80)
-            for (video, expected_size), (success, actual_size), filepath in zip(
-                selected_videos, results, file_paths
-            ):
-                title = video.get("title", "Unknown")
-                if success:
-                    print(
-                        f"✓ {title}\n"
-                        f"  Path: {filepath}\n"
-                        f"  Size: {human_readable_size(actual_size)} "
-                        f"(Expected: {human_readable_size(expected_size)})"
-                    )
-                else:
-                    print(f"✗ Failed to download: {title}")
-                print()
         else:
-            # Normal processing without size limit
-            for json_file in json_files:
-                result = await process_json_file(json_file, output_dir)
-                total_size += result["total_size"]
-                total_files += result["files_processed"]
+            selected_videos = videos_with_sizes
 
-    if len(json_files) > 1 and not output_dir:
-        print("\nSummary:")
-        print("-" * 80)
-        print(f"Total files processed: {total_files}")
-        print(f"Combined size: {human_readable_size(total_size)}")
+        if use_curl:
+            # Generate and print curl command
+            print(generate_curl_command(selected_videos, output_dir, json_to_videos))
+        else:
+            # Show download plan and download files
+            print_video_info(selected_videos, "Download Plan", quiet)
+            await download_videos(session, selected_videos, output_dir, json_to_videos)
 
 
 def main() -> None:
@@ -315,6 +314,10 @@ Video metadata processor with three modes of operation:
    Download videos up to specified size limit.
    Example: python fetch.py "*.json" --output videos --max-download 200
 
+4. Curl Command Mode:
+   Generate curl commands for downloading videos.
+   Example: python fetch.py "*.json" --output videos --curl > download.sh
+
 All modes support glob patterns for processing multiple JSON files.
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -334,6 +337,17 @@ All modes support glob patterns for processing multiple JSON files.
         type=int,
         help="Maximum download size in megabytes. If specified, only downloads files that fit within this limit.",
     )
+    parser.add_argument(
+        "--curl",
+        action="store_true",
+        help="Generate curl command instead of downloading files directly.",
+    )
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress all output except the curl command when --curl is used.",
+    )
 
     args = parser.parse_args()
 
@@ -344,7 +358,15 @@ All modes support glob patterns for processing multiple JSON files.
             print(f"Error creating output directory: {e}", file=sys.stderr)
             sys.exit(1)
 
-    asyncio.run(process_files(args.pattern, args.output, args.max_download))
+    asyncio.run(
+        process_files(
+            args.pattern,
+            args.output,
+            args.max_download,
+            args.curl,
+            args.quiet,
+        )
+    )
 
 
 if __name__ == "__main__":

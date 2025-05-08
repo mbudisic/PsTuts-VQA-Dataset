@@ -40,7 +40,7 @@ This directory contains utility scripts for managing and processing the dataset.
 
 ### `fetch.py` 📥
 
-A versatile script for processing video metadata JSON files with three modes of operation:
+A versatile script for processing video metadata JSON files with four modes of operation:
 
 1. **Size Calculation Mode** (default)
    ```bash
@@ -71,6 +71,23 @@ A versatile script for processing video metadata JSON files with three modes of 
    - Verifies downloaded file sizes
    - Organizes files into subfolders based on source JSON files
      - Example: `videos/test/` for files from `test.json`
+
+4. **Curl Command Mode** 🚀
+   ```bash
+   # Generate curl command and save to file
+   python fetch.py "*.json" --output videos --curl --quiet > download.sh
+   
+   # Make it executable and run
+   chmod +x download.sh
+   ./download.sh
+   ```
+   - Generates a curl command for downloading videos
+   - Uses parallel downloads with `--parallel` and `--parallel-immediate`
+   - Limits concurrent downloads to 60 with `--parallel-max 60`
+   - Creates directories automatically with `--create-dirs`
+   - Shows progress with `--progress-bar`
+   - Output can be piped to a file for later use
+   - Use `--quiet` to suppress all output except the curl command
 
 Common Features:
 - Supports glob patterns for processing multiple JSON files
