@@ -5,7 +5,6 @@ import sys
 from typing import Dict
 
 import aiohttp
-from pathlib import Path
 from typing import List
 
 
