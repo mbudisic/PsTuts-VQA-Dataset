@@ -34,7 +34,7 @@ async def calculate_sizes(json_path: str) -> Dict[str, int]:
         Dict containing total size and number of files processed
     """
     try:
-        with open(json_path, "r") as f:
+        with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, FileNotFoundError) as e:
         print(f"Error reading JSON file {json_path}: {e}", file=sys.stderr)
